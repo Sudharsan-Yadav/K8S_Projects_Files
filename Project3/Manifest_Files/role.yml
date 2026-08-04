@@ -35,6 +35,8 @@ rules:
       - replicationcontrollers
       - serviceaccounts
       - services
+      - secrets
+      - poddisruptionbudgets
     verbs:
       - get
       - list

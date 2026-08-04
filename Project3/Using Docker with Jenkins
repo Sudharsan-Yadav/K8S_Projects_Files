@@ -1,0 +1,59 @@
+pipeline{
+    agent any
+    environment{
+        scannerHome = tool "MySonar"
+        CCN = credentials('CLOUDINARY_CLOUD_NAME')
+        CK = credentials('CLOUDINARY_KEY')
+        CS = credentials('CLOUDINARY_SECRET')
+        MT = credentials('MAPBOX_TOKEN')
+        DB = credentials('DB_URL')
+    }
+    stages{
+        stage("Code"){
+            steps{
+                git branch: 'main', url: 'https://github.com/Sudharsan-Yadav/3-Tier-Full-Stack-yelp-camp.git'
+            }
+        }
+        stage("CQA"){
+            steps{
+                 withSonarQubeEnv("MySonar") {
+                     sh "${scannerHome}/bin/sonar-scanner -Dsonar.projectName=MyProject -Dsonar.projectKey=MyProject"
+                 }
+            }
+        }
+        stage("QualityGates"){
+            steps{
+                waitForQualityGate abortPipeline: false, credentialsId: 'sonar-token'
+            }
+        }
+        stage("OWASP"){
+            steps{
+                dependencyCheck additionalArguments: '--scan ./ --disableYarnAudit --disableNodeAudit', nvdCredentialsId: 'OWASP-Token', odcInstallation: 'DP-Check'
+                dependencyCheckPublisher pattern: '**/dependency-check-report.xml'
+            }
+        }
+        stage("Image"){
+            steps{
+                sh "docker build -t appimage ."
+            }
+        }
+        stage("Scan"){
+            steps{
+                sh "trivy image appimage"
+            }
+        }
+        stage("Registry"){
+            steps{
+                withDockerRegistry(credentialsId: 'docker-cred', url: 'https://index.docker.io/v1/') {
+                    sh "docker tag appimage sudharsan06122000/march2026:appimage"
+                    sh "docker push sudharsan06122000/march2026:appimage"
+                }
+            }
+        }
+        stage("Deploy"){
+            steps{
+                sh 'docker run -itd --name mycont -p 1234:3000 -e CLOUDINARY_CLOUD_NAME="$CCN" -e CLOUDINARY_KEY="$CK" -e CLOUDINARY_SECRET="$CS" -e MAPBOX_TOKEN="$MT" -e DB_URL="$DB" sudharsan06122000/march2026:appimage'
+            }
+        }
+    }
+}

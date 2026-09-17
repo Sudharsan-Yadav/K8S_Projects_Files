@@ -11,9 +11,9 @@ pipeline{
         }
         stage("CQA"){
             steps{
-                 withSonarQubeEnv("MySonar") {
-                     sh "${scannerHome}/bin/sonar-scanner -Dsonar.projectKey=MyProject"
-                 }
+                withSonarQubeEnv("MySonar") {
+                    sh "${scannerHome}/bin/sonar-scanner -Dsonar.projectKey=MyProject"
+                }
             }
         }
         stage("QualityGates"){
@@ -21,7 +21,7 @@ pipeline{
                 waitForQualityGate abortPipeline: false, credentialsId: 'MySonar'
             }
         }
-        stage("Images"){
+        stage("Image"){
             steps{
                 sh "docker build -t dbimage database"
                 sh "docker build -t appimage ."
@@ -33,15 +33,15 @@ pipeline{
                 sh "trivy image appimage"
             }
         }
-        stage("Tag"){
+        stage("ImageTag"){
             steps{
                 sh "docker tag dbimage sudharsan06122000/bloodyapp:dbimage"
                 sh "docker tag appimage sudharsan06122000/bloodyapp:appimage"
             }
         }
-        stage("Push"){
+        stage("ImagePush"){
             steps{
-                withDockerRegistry(credentialsId: 'DockerHub') {
+                withDockerRegistry(credentialsId: 'Dockerhub', url: 'https://index.docker.io/v1/') {
                     sh "docker push sudharsan06122000/bloodyapp:dbimage"
                     sh "docker push sudharsan06122000/bloodyapp:appimage"
                 }
@@ -50,7 +50,7 @@ pipeline{
         stage("Deploy"){
             steps{
                 sh "docker run -d --name mysqldb -p 3306:3306 sudharsan06122000/bloodyapp:dbimage"
-                sh "docker run -d --name appcont -p 1111:80 --link mysqldb:mysqlcont sudharsan06122000/bloodyapp:appimage"
+                sh "docker run -itd --name appcont -p 1111:80 --link mysqldb:MySqlContainer sudharsan06122000/bloodyapp:appimage"
             }
         }
     }
